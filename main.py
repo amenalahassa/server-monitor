@@ -15,7 +15,7 @@ def save_session_state():
             'monitoring': st.session_state.monitoring,
             'server_info': st.session_state.server_info,
             'confirm_reset': st.session_state.confirm_reset,
-            'refreshTime': st.session_state.refreshTime
+            'refresh_time': st.session_state.refresh_time
         }, f)
 
 def load_session_state():
@@ -52,8 +52,8 @@ else:
         st.session_state.server_info = None
     if 'confirm_reset' not in st.session_state:
         st.session_state.confirm_reset = False
-    if 'refreshTime' not in st.session_state:
-        st.session_state.refreshTime = REFRESH_TIME
+    if 'refresh_time' not in st.session_state:
+        st.session_state.refresh_time = REFRESH_TIME
 
 
 st.title("Server Monitoring Dashboard")
@@ -67,7 +67,7 @@ with st.form("server_config"):
                            value=st.session_state.server_info['port'] if st.session_state.server_info else 22)
     username = st.text_input("Username (optional)",
                              value=st.session_state.server_info.get('username', '') if st.session_state.server_info else "")
-    refreshTime = st.slider("Refresh Time (seconds)", min_value=15, max_value=60, value=REFRESH_TIME)
+    refresh_time = st.slider("Refresh Time (seconds)", min_value=15, max_value=60, value=REFRESH_TIME)
 
     submitted = st.form_submit_button("Apply Configuration")
     if submitted:
@@ -79,9 +79,8 @@ with st.form("server_config"):
                     'ip': ip,
                     'port': port,
                     'username': username,
-                    'refreshTime': refreshTime
                 }
-                st.session_state.refreshTime = refreshTime
+                st.session_state.refresh_time = refresh_time
                 remove_log_file()
                 save_session_state()
                 st.rerun()
@@ -101,7 +100,7 @@ if st.session_state.confirm_reset:
                 'username': username
             }
             st.session_state.confirm_reset = False
-            st.session_state.refreshTime = refreshTime
+            st.session_state.refresh_time = refresh_time
             remove_log_file()
             save_session_state()
             st.rerun()
@@ -112,7 +111,7 @@ if st.session_state.confirm_reset:
 
 if st.session_state.monitoring:
     # Add auto-refresh meta tag
-    st.markdown(f"""<meta http-equiv="refresh" content="{st.session_state.refreshTime}">""", unsafe_allow_html=True)
+    st.markdown(f"""<meta http-equiv="refresh" content="{st.session_state.refresh_time}">""", unsafe_allow_html=True)
 
     # Perform server check
     server = st.session_state.server_info
@@ -175,4 +174,4 @@ elif st.session_state.server_info and not st.session_state.confirm_reset:
         st.rerun()
 
 st.write("---")
-st.write("Monitoring checks occur every 10 seconds. Keep this page open to continue monitoring.")
+st.write(f"Monitoring checks occur every {st.session_state.refresh_time} seconds. Keep this page open to continue monitoring.")
