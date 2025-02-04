@@ -78,8 +78,7 @@ with st.form("server_config"):
                 st.session_state.server_info = {
                     'ip': ip,
                     'port': port,
-                    'username': username,
-                    'refreshTime': refreshTime
+                    'username': username
                 }
                 st.session_state.refresh_time = refresh_time
                 remove_log_file()
