@@ -1,3 +1,4 @@
 server_monitor.log
+session_state.json
 venv/
 .idea/

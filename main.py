@@ -2,6 +2,26 @@ import streamlit as st
 import socket
 import datetime
 import os
+import json
+
+SESSION_FILE = "session_state.json"
+LOG_FILE = "server_monitor.log"
+
+def save_session_state():
+    """Save session state to a file"""
+    with open(SESSION_FILE, "w") as f:
+        json.dump({
+            'monitoring': st.session_state.monitoring,
+            'server_info': st.session_state.server_info,
+            'confirm_reset': st.session_state.confirm_reset
+        }, f)
+
+def load_session_state():
+    """Load session state from file if exists"""
+    if os.path.exists(SESSION_FILE):
+        with open(SESSION_FILE, "r") as f:
+            return json.load(f)
+    return None
 
 def check_server(ip, port, timeout=5):
     """Attempt to connect to the server's port to check if it's reachable."""
@@ -15,34 +35,71 @@ def check_server(ip, port, timeout=5):
     except Exception as e:
         return "Down", str(e)
 
-# Initialize session state
-if 'monitoring' not in st.session_state:
-    st.session_state.monitoring = False
-if 'server_info' not in st.session_state:
-    st.session_state.server_info = None
+# Initialize session state with persistence
+loaded_state = load_session_state()
+if loaded_state:
+    st.session_state.update(loaded_state)
+else:
+    if 'monitoring' not in st.session_state:
+        st.session_state.monitoring = False
+    if 'server_info' not in st.session_state:
+        st.session_state.server_info = None
+    if 'confirm_reset' not in st.session_state:
+        st.session_state.confirm_reset = False
 
 st.title("Server Monitoring Dashboard")
 
-if not st.session_state.monitoring:
-    with st.form("server_config"):
-        st.subheader("Server Configuration")
-        ip = st.text_input("Server IP Address")
-        port = st.number_input("Port", min_value=1, max_value=65535, value=22)
-        username = st.text_input("Username (optional)")
+# Always show configuration form
+with st.form("server_config"):
+    st.subheader("Server Configuration")
+    ip = st.text_input("Server IP Address",
+                       value=st.session_state.server_info['ip'] if st.session_state.server_info else "")
+    port = st.number_input("Port", min_value=1, max_value=65535,
+                           value=st.session_state.server_info['port'] if st.session_state.server_info else 22)
+    username = st.text_input("Username (optional)",
+                             value=st.session_state.server_info.get('username', '') if st.session_state.server_info else "")
 
-        if st.form_submit_button("Start Monitoring"):
-            if ip and port:
+    submitted = st.form_submit_button("Apply Configuration")
+    if submitted:
+        if ip and port:
+            if st.session_state.monitoring:
+                st.session_state.confirm_reset = True
+            else:
                 st.session_state.server_info = {
                     'ip': ip,
                     'port': port,
                     'username': username
                 }
-                st.session_state.monitoring = True
+                if os.path.exists(LOG_FILE):
+                    os.remove(LOG_FILE)
+                save_session_state()
                 st.rerun()
-            else:
-                st.error("Please provide both IP address and port number")
+        else:
+            st.error("Please provide both IP address and port number")
 
-else:
+# Confirmation dialog for configuration change during monitoring
+if st.session_state.confirm_reset:
+    st.warning("Changing configuration will stop current monitoring and clear existing logs. Are you sure?")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Confirm"):
+            st.session_state.monitoring = False
+            st.session_state.server_info = {
+                'ip': ip,
+                'port': port,
+                'username': username
+            }
+            st.session_state.confirm_reset = False
+            if os.path.exists(LOG_FILE):
+                os.remove(LOG_FILE)
+            save_session_state()
+            st.rerun()
+    with col2:
+        if st.button("Cancel"):
+            st.session_state.confirm_reset = False
+            st.rerun()
+
+if st.session_state.monitoring:
     # Add auto-refresh meta tag
     st.markdown("""<meta http-equiv="refresh" content="10">""", unsafe_allow_html=True)
 
@@ -57,7 +114,7 @@ else:
         log_entry += f" - Error: {error}"
     log_entry += "\n"
 
-    with open("server_monitor.log", "a") as f:
+    with open(LOG_FILE, "a") as f:
         f.write(log_entry)
 
     # Display current status
@@ -76,8 +133,8 @@ else:
     # Show log file
     st.subheader("Monitoring Log")
 
-    if os.path.exists("server_monitor.log"):
-        with open("server_monitor.log", "r") as f:
+    if os.path.exists(LOG_FILE):
+        with open(LOG_FILE, "r") as f:
             logs = f.readlines()
 
         # Show last 10 entries
@@ -87,7 +144,7 @@ else:
         st.download_button(
             label="Download Full Log",
             data="".join(logs),
-            file_name="server_monitor.log",
+            file_name=LOG_FILE,
             mime="text/plain"
         )
     else:
@@ -96,7 +153,13 @@ else:
     # Stop monitoring button
     if st.button("Stop Monitoring"):
         st.session_state.monitoring = False
-        st.session_state.server_info = None
+        save_session_state()
+        st.rerun()
+
+elif st.session_state.server_info and not st.session_state.confirm_reset:
+    if st.button("Start Monitoring"):
+        st.session_state.monitoring = True
+        save_session_state()
         st.rerun()
 
 st.write("---")
